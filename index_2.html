@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cipher Machine — eight historical ciphers, in your browser</title>
+<meta name="description" content="Encrypt and decrypt with eight historical ciphers, from Atbash to Enigma. Runs entirely in your browser. Nothing is sent anywhere.">
+
+<!-- ==========================================================
+     FONTS — the only network request this page makes.
+     To make the page 100% offline, delete the two <link> tags
+     below. The stack falls back to system monospace and still
+     looks fine, just less distinctive.
+     ========================================================== -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --amber: #ffb300;
+    --amber-dim: #7a5500;
+    --amber-glow: rgba(255, 179, 0, 0.15);
+    --bg: #0a0a08;
+    --panel: #111108;
+    --panel-border: #2a2a1a;
+    --screen-bg: #050500;
+    --text: #ffb300;
+    --text-dim: #7d5c0a;
+    --green: #39ff14;
+    --error: #ff4444;
+    --mono: 'Share Tech Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+    --display: 'Orbitron', 'Share Tech Mono', ui-monospace, Consolas, monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 2rem 1rem 3rem;
+    background-image: repeating-linear-gradient(
+      0deg, transparent, transparent 2px,
+      rgba(255,179,0,0.015) 2px, rgba(255,179,0,0.015) 4px);
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg, rgba(0,0,0,0.07) 0px, rgba(0,0,0,0.07) 1px,
+      transparent 1px, transparent 2px);
+    pointer-events: none;
+    z-index: 100;
+  }
+
+  header { text-align: center; margin-bottom: 2.2rem; }
+
+  h1 {
+    font-family: var(--display);
+    font-weight: 900;
+    font-size: clamp(1.5rem, 5vw, 2.8rem);
+    letter-spacing: 0.3em;
+    color: var(--amber);
+    text-shadow: 0 0 10px var(--amber), 0 0 30px rgba(255,179,0,0.4),
+                 0 0 60px rgba(255,179,0,0.2);
+    animation: flicker 8s infinite;
+  }
+
+  .subtitle {
+    font-size: 0.65rem;
+    letter-spacing: 0.35em;
+    color: var(--text-dim);
+    margin-top: 0.6rem;
+  }
+
+  @keyframes flicker {
+    0%, 95%, 100% { opacity: 1; }
+    96% { opacity: 0.85; }
+    97% { opacity: 1; }
+    98% { opacity: 0.9; }
+  }
+
+  .machine {
+    width: 100%;
+    max-width: 820px;
+    border: 1px solid var(--panel-border);
+    border-radius: 4px;
+    background: var(--panel);
+    box-shadow: 0 0 40px rgba(255,179,0,0.05), inset 0 1px 0 rgba(255,179,0,0.1);
+    overflow: hidden;
+  }
+
+  .machine-top {
+    background: #0d0d0a;
+    border-bottom: 1px solid var(--panel-border);
+    padding: 0.9rem 1.2rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--amber-dim); }
+  .dot.active { background: var(--amber); box-shadow: 0 0 6px var(--amber); }
+
+  .machine-top span {
+    font-size: 0.6rem; letter-spacing: 0.3em;
+    color: var(--text-dim); margin-left: auto;
+  }
+
+  .body { padding: 1.4rem; display: flex; flex-direction: column; gap: 1.3rem; }
+
+  label {
+    font-size: 0.62rem; letter-spacing: 0.3em;
+    color: var(--text-dim); display: block; margin-bottom: 0.45rem;
+  }
+
+  .cipher-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(122px, 1fr));
+    gap: 0.45rem;
+  }
+
+  .cipher-btn {
+    background: var(--screen-bg);
+    border: 1px solid var(--panel-border);
+    color: var(--text-dim);
+    font-family: var(--mono);
+    padding: 0.55rem 0.6rem;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: left;
+    border-radius: 2px;
+    line-height: 1.4;
+  }
+  .cipher-btn:hover { border-color: var(--amber-dim); color: var(--amber); background: var(--amber-glow); }
+  .cipher-btn.selected {
+    border-color: var(--amber); color: var(--amber);
+    background: var(--amber-glow); box-shadow: 0 0 8px rgba(255,179,0,0.2);
+  }
+  .cipher-btn .cipher-name {
+    display: block; font-family: var(--display);
+    font-size: 0.62rem; font-weight: 700; letter-spacing: 0.06em;
+  }
+  .cipher-btn .cipher-era {
+    display: block; font-size: 0.58rem; opacity: 0.65; letter-spacing: 0.04em;
+  }
+
+  .info-panel {
+    border-left: 2px solid var(--amber-dim);
+    padding: 0.15rem 0 0.15rem 0.8rem;
+    margin-top: 0.9rem;
+    min-height: 2.6em;
+  }
+  .info-panel .what { font-size: 0.76rem; color: var(--text); line-height: 1.55; }
+  .info-panel .hist {
+    font-size: 0.7rem; color: var(--text-dim);
+    line-height: 1.55; margin-top: 0.3rem;
+  }
+
+  .mode-toggle {
+    display: flex; border: 1px solid var(--panel-border);
+    border-radius: 2px; overflow: hidden; width: fit-content;
+  }
+  .mode-btn {
+    background: var(--screen-bg); border: none; color: var(--text-dim);
+    font-family: var(--display); font-size: 0.6rem; font-weight: 700;
+    letter-spacing: 0.2em; padding: 0.55rem 1.3rem; cursor: pointer;
+    transition: all 0.15s;
+  }
+  .mode-btn.active { background: var(--amber); color: #000; }
+  .mode-btn:not(.active):hover { color: var(--amber); }
+
+  .screen {
+    background: var(--screen-bg);
+    border: 1px solid var(--panel-border);
+    border-radius: 2px;
+    padding: 0.75rem;
+    transition: opacity 0.15s;
+  }
+  .screen.disabled { opacity: 0.35; }
+
+  textarea, input[type="text"] {
+    width: 100%; background: transparent; border: none; color: var(--amber);
+    font-family: var(--mono); font-size: 0.9rem; outline: none;
+    resize: none; caret-color: var(--amber); line-height: 1.6;
+  }
+  textarea { min-height: 92px; }
+  textarea::placeholder, input::placeholder { color: var(--text-dim); }
+  input:disabled { cursor: not-allowed; }
+
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; align-items: start; }
+  @media (max-width: 560px) { .row { grid-template-columns: 1fr; } }
+
+  .btn-row { display: flex; gap: 0.6rem; }
+
+  .process-btn {
+    flex: 1;
+    background: transparent; border: 1px solid var(--amber); color: var(--amber);
+    font-family: var(--display); font-size: 0.72rem; font-weight: 700;
+    letter-spacing: 0.35em; padding: 0.85rem; cursor: pointer;
+    transition: all 0.2s; border-radius: 2px;
+    text-shadow: 0 0 8px rgba(255,179,0,0.5);
+  }
+  .process-btn:hover {
+    background: var(--amber); color: #000;
+    box-shadow: 0 0 20px rgba(255,179,0,0.3); text-shadow: none;
+  }
+  .process-btn:active { transform: scale(0.99); }
+
+  .ghost-btn {
+    background: transparent; border: 1px solid var(--panel-border);
+    color: var(--text-dim); font-family: var(--display); font-size: 0.62rem;
+    font-weight: 700; letter-spacing: 0.2em; padding: 0.85rem 1rem;
+    cursor: pointer; transition: all 0.2s; border-radius: 2px; white-space: nowrap;
+  }
+  .ghost-btn:hover { border-color: var(--amber-dim); color: var(--amber); }
+
+  .output-screen {
+    background: var(--screen-bg); border: 1px solid var(--panel-border);
+    border-radius: 2px; padding: 1rem 1rem 1.6rem; min-height: 84px;
+    position: relative; cursor: pointer;
+  }
+  .output-text {
+    font-family: var(--mono); font-size: 0.95rem; color: var(--green);
+    text-shadow: 0 0 8px rgba(57,255,20,0.4);
+    word-break: break-word; line-height: 1.6; white-space: pre-wrap;
+  }
+  .output-empty { color: var(--text-dim); font-size: 0.75rem; letter-spacing: 0.2em; }
+  .error-text { color: var(--error); font-size: 0.8rem; line-height: 1.5; }
+  .copy-hint {
+    position: absolute; bottom: 0.5rem; right: 0.7rem;
+    font-size: 0.58rem; letter-spacing: 0.2em; color: var(--text-dim);
+  }
+  .copied-flash { color: var(--green) !important; }
+
+  .machine-footer {
+    border-top: 1px solid var(--panel-border);
+    padding: 0.6rem 1.2rem;
+    display: flex; justify-content: space-between; align-items: center; gap: 1rem;
+  }
+  .machine-footer span { font-size: 0.58rem; letter-spacing: 0.25em; color: var(--text-dim); }
+
+  .status-light {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--green);
+    box-shadow: 0 0 6px var(--green); display: inline-block;
+    margin-right: 0.4rem; animation: pulse 2s infinite;
+  }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+  footer.page-footer {
+    max-width: 820px; margin-top: 1.6rem; text-align: center;
+    font-size: 0.68rem; color: var(--text-dim); line-height: 1.7;
+  }
+  footer.page-footer strong { color: var(--amber-dim); font-weight: normal; }
+
+  footer.page-footer .kofi {
+    margin-top: 1.1rem;
+    padding-top: 0.9rem;
+    border-top: 1px solid var(--panel-border);
+    font-size: 0.7rem;
+    letter-spacing: 0.08em;
+  }
+  footer.page-footer .kofi a {
+    color: var(--amber);
+    text-decoration: none;
+    border-bottom: 1px dotted var(--amber-dim);
+    padding-bottom: 1px;
+    transition: all 0.15s;
+  }
+  footer.page-footer .kofi a:hover {
+    border-bottom-color: var(--amber);
+    text-shadow: 0 0 8px rgba(255,179,0,0.6);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>CIPHER MACHINE</h1>
+  <p class="subtitle">NO SERVER &bull; NOTHING SENT &bull; NOTHING STORED</p>
+</header>
+
+<div class="machine">
+  <div class="machine-top">
+    <div class="dot active"></div><div class="dot"></div><div class="dot"></div>
+    <span>CRYPTO/UNIT/MK1</span>
+  </div>
+
+  <div class="body">
+
+    <div>
+      <label>// SELECT CIPHER</label>
+      <div class="cipher-grid" id="cipherGrid"></div>
+      <div class="info-panel" id="infoPanel">
+        <div class="what" id="infoWhat">Choose a cipher to begin.</div>
+        <div class="hist" id="infoHist"></div>
+      </div>
+    </div>
+
+    <div>
+      <label>// MODE</label>
+      <div class="mode-toggle">
+        <button class="mode-btn active" id="btnEncrypt" type="button">ENCRYPT</button>
+        <button class="mode-btn" id="btnDecrypt" type="button">DECRYPT</button>
+      </div>
+    </div>
+
+    <div class="row">
+      <div>
+        <label>// INPUT TEXT</label>
+        <div class="screen">
+          <textarea id="inputText" placeholder="Enter message..." spellcheck="false"></textarea>
+        </div>
+      </div>
+      <div>
+        <label>// KEY <span id="keyLabel" style="font-size:0.58rem"></span></label>
+        <div class="screen" id="keyScreen">
+          <input type="text" id="keyInput" placeholder="Key..." spellcheck="false" autocomplete="off">
+        </div>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="process-btn" id="btnProcess" type="button">[ PROCESS ]</button>
+      <button class="ghost-btn" id="btnSwap" type="button" title="Move the output back into the input">&#8593; FEED BACK</button>
+    </div>
+
+    <div>
+      <label>// OUTPUT</label>
+      <div class="output-screen" id="outputScreen" title="Click to copy">
+        <div id="outputText" class="output-empty">AWAITING INPUT...</div>
+        <span class="copy-hint" id="copyHint">CLICK TO COPY</span>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="machine-footer">
+    <span><span class="status-light"></span>SYSTEM ONLINE</span>
+    <span>ALL PROCESSING LOCAL</span>
+  </div>
+</div>
+
+<footer class="page-footer">
+  <p>Every cipher here has been broken. That is rather the point &mdash; each one
+     is small enough to hold in your head and work with a pencil.</p>
+  <p style="margin-top:0.5rem"><strong>Ctrl+Enter</strong> to process &bull;
+     click the output to copy it</p>
+  <p class="kofi">If this was any fun,
+     <a href="https://ko-fi.com/thedemonverse" target="_blank" rel="noopener noreferrer">buy me a coffee</a>.</p>
+</footer>
+
+<script>
+/* =========================================================================
+   CIPHER MACHINE — all eight ciphers, running locally in your browser.
+   Nothing on this page contacts a server. There is no server.
+   ========================================================================= */
+
+const isLetter = ch => ch >= 'A' && ch <= 'Z' || ch >= 'a' && ch <= 'z';
+const clean = s => Array.from(s).filter(isLetter).map(c => c.toUpperCase()).join('');
+const ordA = c => c.charCodeAt(0) - 65;
+
+/* Walk the text, transforming letters and passing everything else
+   through unchanged. Case of the original letter is preserved.
+   fn(letterIndex, nthLetter) -> new letter index 0-25 */
+function mapLetters(text, fn) {
+  let n = 0, out = '';
+  for (const ch of text) {
+    if (!isLetter(ch)) { out += ch; continue; }
+    const upper = ch === ch.toUpperCase();
+    const base = upper ? 65 : 97;
+    const p = ch.toUpperCase().charCodeAt(0) - 65;
+    out += String.fromCharCode(((fn(p, n++) % 26) + 26) % 26 + base);
+  }
+  return out;
+}
+
+function parseInteger(key, msg) {
+  const s = String(key).trim();
+  if (!/^[+-]?\d+$/.test(s)) throw new Error(msg);
+  return parseInt(s, 10);
+}
+
+/* ---- Caesar ---- */
+function caesar(text, key, dec) {
+  let shift = ((parseInteger(key, 'Caesar key must be a whole number.') % 26) + 26) % 26;
+  if (dec) shift = -shift;
+  return mapLetters(text, p => p + shift);
+}
+
+/* ---- ROT13 / Atbash ---- */
+const rot13  = text => mapLetters(text, p => p + 13);
+const atbash = text => mapLetters(text, p => 25 - p);
+
+/* ---- Vigenere ---- */
+function vigenere(text, key, dec) {
+  const k = clean(key);
+  if (!k) throw new Error('Vigen\u00e8re key must contain letters.');
+  return mapLetters(text, (p, i) => {
+    const s = ordA(k[i % k.length]);
+    return p + (dec ? -s : s);
+  });
+}
+
+/* ---- Beaufort (reciprocal) ---- */
+function beaufort(text, key) {
+  const k = clean(key);
+  if (!k) throw new Error('Beaufort key must contain letters.');
+  return mapLetters(text, (p, i) => ordA(k[i % k.length]) - p);
+}
+
+/* ---- Rail Fence (operates on raw text, spaces and all) ---- */
+function railPattern(n, rails) {
+  const pat = []; let rail = 0, dir = 1;
+  for (let i = 0; i < n; i++) {
+    pat.push(rail);
+    if (rail === 0) dir = 1; else if (rail === rails - 1) dir = -1;
+    rail += dir;
+  }
+  return pat;
+}
+function railKey(key) {
+  const r = parseInteger(key, 'Rail Fence key must be an integer >= 2.');
+  if (r < 2) throw new Error('Rail Fence key must be an integer >= 2.');
+  return r;
+}
+function railfenceEncrypt(text, key) {
+  const rails = railKey(key);
+  const fence = Array.from({ length: rails }, () => []);
+  const pat = railPattern(text.length, rails);
+  for (let i = 0; i < text.length; i++) fence[pat[i]].push(text[i]);
+  return fence.map(r => r.join('')).join('');
+}
+function railfenceDecrypt(text, key) {
+  const rails = railKey(key);
+  const n = text.length;
+  const pat = railPattern(n, rails);
+  const order = Array.from({ length: n }, (_, i) => i)
+                     .sort((a, b) => pat[a] - pat[b] || a - b);
+  const res = new Array(n);
+  for (let j = 0; j < n; j++) res[order[j]] = text[j];
+  return res.join('');
+}
+
+/* ---- Playfair ---- */
+function playfairSquare(key) {
+  const seen = new Set(); const sq = [];
+  for (const ch of clean(key).replace(/J/g, 'I') + 'ABCDEFGHIKLMNOPQRSTUVWXYZ')
+    if (!seen.has(ch)) { seen.add(ch); sq.push(ch); }
+  const grid = [];
+  for (let r = 0; r < 5; r++) grid.push(sq.slice(r * 5, r * 5 + 5));
+  const pos = {};
+  grid.forEach((row, r) => row.forEach((ch, c) => { pos[ch] = [r, c]; }));
+  return { grid, pos };
+}
+function playfairPairs(text) {
+  const t = clean(text).replace(/J/g, 'I');
+  const pairs = []; let i = 0;
+  while (i < t.length) {
+    const a = t[i];
+    const pad = a === 'X' ? 'Q' : 'X';
+    if (i + 1 === t.length)      { pairs.push([a, pad]); i += 1; }
+    else if (t[i] === t[i + 1])  { pairs.push([a, pad]); i += 1; }
+    else                         { pairs.push([a, t[i + 1]]); i += 2; }
+  }
+  return pairs;
+}
+function playfairApply(pairs, grid, pos, dec) {
+  const step = dec ? -1 : 1;
+  const m = x => ((x % 5) + 5) % 5;
+  return pairs.map(([a, b]) => {
+    const [ra, ca] = pos[a], [rb, cb] = pos[b];
+    if (ra === rb) return grid[ra][m(ca + step)] + grid[rb][m(cb + step)];
+    if (ca === cb) return grid[m(ra + step)][ca] + grid[m(rb + step)][cb];
+    return grid[ra][cb] + grid[rb][ca];
+  }).join('');
+}
+function playfairEncrypt(text, key) {
+  const { grid, pos } = playfairSquare(key);
+  return playfairApply(playfairPairs(text), grid, pos, false);
+}
+function playfairDecrypt(text, key) {
+  const { grid, pos } = playfairSquare(key);
+  const t = clean(text).replace(/J/g, 'I');
+  if (!t) throw new Error('Playfair ciphertext must contain letters.');
+  if (t.length % 2 !== 0) throw new Error('Playfair ciphertext must have an even number of letters.');
+  const pairs = [];
+  for (let i = 0; i < t.length; i += 2) pairs.push([t[i], t[i + 1]]);
+  return playfairApply(pairs, grid, pos, true);
+}
+
+/* ---- Enigma ---- */
+const ROTOR_SPECS = {
+  I:   ['EKMFLGDQVZNTOWYHXUSPAIBRCJ', 'Q'],
+  II:  ['AJDKSIRUXBLHWTMCQGZNPYFVOE', 'E'],
+  III: ['BDFHJLCPRTXVZNYEIWGAKMUSQO', 'V'],
+  IV:  ['ESOVPZJAYQUIRHXLNFTGKDCMWB', 'J'],
+  V:   ['VZBRGITYUPSDNHLXAWMJQOFECK', 'Z'],
+};
+const REFLECTOR_B = 'YRUHQSLDPXNGOKMIEBFZCWVJAT';
+
+function makeRotor(name, position, ring) {
+  const [wiring, notch] = ROTOR_SPECS[name];
+  const forward = Array.from(wiring, c => ordA(c));
+  const backward = new Array(26);
+  forward.forEach((o, i) => { backward[o] = i; });
+  return {
+    forward, backward,
+    notch: ordA(notch),
+    pos: ordA(position),
+    ring: ordA(ring),
+  };
+}
+const atNotch = r => r.pos === r.notch;
+const stepRotor = r => { r.pos = (r.pos + 1) % 26; };
+const encFwd = (r, c) => { const s = r.pos - r.ring; return (((r.forward[(((c + s) % 26) + 26) % 26] - s) % 26) + 26) % 26; };
+const encBwd = (r, c) => { const s = r.pos - r.ring; return (((r.backward[(((c + s) % 26) + 26) % 26] - s) % 26) + 26) % 26; };
+
+function enigmaParseKey(key) {
+  const tokens = String(key).toUpperCase().split(/\s+/).filter(Boolean);
+  if (tokens.length < 4)
+    throw new Error("Enigma key needs at least: three rotors and start positions, e.g. 'I II III AAA'.");
+
+  const names = tokens.slice(0, 3);
+  for (const r of names)
+    if (!ROTOR_SPECS[r]) throw new Error(`Unknown rotor '${r}'. Available: I, II, III, IV, V.`);
+
+  const positions = tokens[3];
+  if (positions.length !== 3 || !/^[A-Z]+$/.test(positions))
+    throw new Error('Start positions must be three letters, e.g. AAA.');
+
+  let rest = tokens.slice(4);
+  let rings = 'AAA';
+  if (rest.length && rest[0].length === 3 && /^[A-Z]+$/.test(rest[0])) {
+    rings = rest[0]; rest = rest.slice(1);
+  }
+
+  const used = new Set(); const plugboard = {};
+  for (const pair of rest) {
+    if (pair.length !== 2 || !/^[A-Z]+$/.test(pair) || pair[0] === pair[1])
+      throw new Error(`Plugboard pair '${pair}' must be two different letters, e.g. AB.`);
+    if (used.has(pair[0]) || used.has(pair[1]))
+      throw new Error(`Letter in plug pair '${pair}' is already plugged.`);
+    used.add(pair[0]); used.add(pair[1]);
+    plugboard[pair[0]] = pair[1];
+    plugboard[pair[1]] = pair[0];
+  }
+
+  return {
+    left:   makeRotor(names[0], positions[0], rings[0]),
+    middle: makeRotor(names[1], positions[1], rings[1]),
+    right:  makeRotor(names[2], positions[2], rings[2]),
+    plugboard,
+  };
+}
+
+function enigma(text, key) {
+  const { left, middle, right, plugboard } = enigmaParseKey(key);
+  const reflector = Array.from(REFLECTOR_B, c => ordA(c));
+  let out = '';
+  for (const ch of clean(text)) {
+    if (atNotch(middle))      { stepRotor(left); stepRotor(middle); }
+    else if (atNotch(right))  { stepRotor(middle); }
+    stepRotor(right);
+
+    let c = ordA(plugboard[ch] || ch);
+    c = encFwd(right, c); c = encFwd(middle, c); c = encFwd(left, c);
+    c = reflector[c];
+    c = encBwd(left, c); c = encBwd(middle, c); c = encBwd(right, c);
+    const o = String.fromCharCode(c + 65);
+    out += plugboard[o] || o;
+  }
+  return out;
+}
+/* ---- the registry ---------------------------------------------------- */
+const CIPHERS = {
+  caesar: {
+    name: 'CAESAR', era: 'Rome, c.50 BC', needsKey: true,
+    hint: 'shift amount, e.g. 13',
+    what: 'Shifts each letter by a fixed number (0\u201325). The classic.',
+    hist: 'Suetonius records Caesar using a shift of three in his private letters. '
+        + 'With only twenty-five possibilities, it can be broken by trying them all.',
+    run: (t, k, d) => caesar(t, k, d),
+  },
+  vigenere: {
+    name: 'VIGEN\u00c8RE', era: 'Italy, 1553', needsKey: true,
+    hint: 'keyword, e.g. SECRET',
+    what: 'Polyalphabetic substitution using a repeating keyword. Much harder to crack than Caesar.',
+    hist: 'Published by Bellaso and misattributed ever since. Held for three '
+        + 'centuries as le chiffre ind\u00e9chiffrable, until Babbage and Kasiski.',
+    run: (t, k, d) => vigenere(t, k, d),
+  },
+  beaufort: {
+    name: 'BEAUFORT', era: 'England, 1857', needsKey: true,
+    hint: 'keyword, e.g. ANCHOR',
+    what: 'Reciprocal variant of Vigen\u00e8re \u2014 encrypt and decrypt use the same operation.',
+    hist: 'From the admiral behind the wind scale. One procedure instead of two, '
+        + 'which halves the chance of an operator error in the field.',
+    run: (t, k) => beaufort(t, k),
+  },
+  atbash: {
+    name: 'ATBASH', era: 'Judea, c.600 BC', needsKey: false,
+    hint: 'none needed',
+    what: 'Hebrew mirror cipher \u2014 A\u2194Z, B\u2194Y, etc. No key needed.',
+    hist: 'The oldest cipher here. It appears in the Book of Jeremiah, where '
+        + 'Babel is written as Sheshach.',
+    run: t => atbash(t),
+  },
+  rot13: {
+    name: 'ROT13', era: 'Usenet, 1980s', needsKey: false,
+    hint: 'none needed',
+    what: 'Caesar with a fixed shift of 13. Used online to hide spoilers.',
+    hist: 'Never meant to protect anything. It hid punchlines and film endings '
+        + 'from anyone who did not want to see them yet.',
+    run: t => rot13(t),
+  },
+  railfence: {
+    name: 'RAIL FENCE', era: 'Origins uncertain', needsKey: true,
+    hint: 'number of rails, e.g. 3',
+    what: 'Writes text in a zigzag across N rails, then reads off row by row.',
+    hist: 'Rearranges rather than replaces \u2014 every original letter is still '
+        + 'there. The Spartan scytale worked on the same principle.',
+    run: (t, k, d) => d ? railfenceDecrypt(t, k) : railfenceEncrypt(t, k),
+  },
+  playfair: {
+    name: 'PLAYFAIR', era: 'London, 1854', needsKey: true,
+    hint: 'keyword, e.g. MONARCHY',
+    what: 'Digraph substitution using a 5\u00d75 key square. I=J.',
+    hist: 'Wheatstone invented it; the Foreign Office thought it too hard for '
+        + 'their attach\u00e9s. Used anyway, from the Boer War onward.',
+    run: (t, k, d) => d ? playfairDecrypt(t, k) : playfairEncrypt(t, k),
+  },
+  enigma: {
+    name: 'ENIGMA', era: 'Germany, 1918', needsKey: true,
+    hint: 'e.g. I II III AAA',
+    what: 'Wehrmacht Enigma I: three rotors and reflector B. Same settings encrypt and decrypt.',
+    hist: 'Broken first in Poland, then at Bletchley Park. Its fatal flaw: no '
+        + 'letter could ever encrypt to itself. Ring settings and plugboard pairs '
+        + 'may be added: I II III AAA BBB AB CD',
+    run: (t, k) => enigma(t, k),
+  },
+};
+
+/* ---- interface ------------------------------------------------------- */
+let selected = null;
+let mode = 'encrypt';
+
+const $ = id => document.getElementById(id);
+const grid = $('cipherGrid');
+
+Object.entries(CIPHERS).forEach(([id, info]) => {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'cipher-btn';
+  btn.innerHTML = '<span class="cipher-name">' + info.name + '</span>'
+                + '<span class="cipher-era">' + info.era + '</span>';
+  btn.addEventListener('click', () => selectCipher(id, btn));
+  grid.appendChild(btn);
+});
+
+function selectCipher(id, btn) {
+  selected = id;
+  const info = CIPHERS[id];
+  document.querySelectorAll('.cipher-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+
+  $('infoWhat').textContent = info.what;
+  $('infoHist').textContent = info.hist;
+  $('keyLabel').textContent = '(' + info.hint + ')';
+
+  const keyBox = $('keyInput');
+  keyBox.disabled = !info.needsKey;
+  keyBox.placeholder = info.needsKey ? info.hint : 'not needed';
+  if (!info.needsKey) keyBox.value = '';
+  $('keyScreen').classList.toggle('disabled', !info.needsKey);
+}
+
+function setMode(m) {
+  mode = m;
+  $('btnEncrypt').classList.toggle('active', m === 'encrypt');
+  $('btnDecrypt').classList.toggle('active', m === 'decrypt');
+}
+$('btnEncrypt').addEventListener('click', () => setMode('encrypt'));
+$('btnDecrypt').addEventListener('click', () => setMode('decrypt'));
+
+function process() {
+  if (!selected) return showOutput('SELECT A CIPHER FIRST', true);
+  const text = $('inputText').value;
+  if (!text.trim()) return showOutput('NO INPUT PROVIDED', true);
+  try {
+    showOutput(CIPHERS[selected].run(text, $('keyInput').value, mode === 'decrypt'), false);
+  } catch (err) {
+    showOutput(err.message, true);
+  }
+}
+$('btnProcess').addEventListener('click', process);
+
+function showOutput(text, isError) {
+  const el = $('outputText');
+  el.textContent = text;
+  el.className = isError ? 'error-text' : 'output-text';
+}
+
+$('btnSwap').addEventListener('click', () => {
+  const el = $('outputText');
+  if (!el.classList.contains('output-text')) return;
+  $('inputText').value = el.textContent;
+  showOutput('AWAITING INPUT...', false);
+  el.className = 'output-empty';
+  setMode(mode === 'encrypt' ? 'decrypt' : 'encrypt');
+});
+
+$('outputScreen').addEventListener('click', () => {
+  const el = $('outputText');
+  if (!el.classList.contains('output-text')) return;
+  navigator.clipboard.writeText(el.textContent).then(() => {
+    const hint = $('copyHint');
+    hint.textContent = 'COPIED';
+    hint.classList.add('copied-flash');
+    setTimeout(() => {
+      hint.textContent = 'CLICK TO COPY';
+      hint.classList.remove('copied-flash');
+    }, 1500);
+  }).catch(() => {});
+});
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); process(); }
+});
+
+/* start on Caesar so the page is never empty */
+selectCipher('caesar', grid.firstElementChild);
+</script>
+
+</body>
+</html>
