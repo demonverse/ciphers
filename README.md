@@ -100,14 +100,7 @@ cryptography is unbroken but opaque; these are broken but transparent.
 
 ## Licence
 
-<!-- Pick one and delete this comment. MIT is the usual choice for
-     something like this: short, permissive, lets anyone reuse it as
-     long as they keep the copyright notice. Add the full text as a
-     LICENSE file in the repo root — GitHub can generate it for you
-     via Add file → Create new file → type "LICENSE" → Choose a
-     license template. -->
-
-MIT
+GPL v3
 
 ---
 
