@@ -3,7 +3,7 @@
 Eight historical ciphers, from a Hebrew scribe's mirror alphabet to the
 Wehrmacht Enigma, running entirely in your browser.
 
-**[Try it →](https://YOURNAME.github.io/REPONAME/)**
+**[Try it →](https://demonverse.github.io/ciphers/)**
 
 No server, no build step, no dependencies. One HTML file.
 
